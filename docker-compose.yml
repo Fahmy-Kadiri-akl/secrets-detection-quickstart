@@ -7,11 +7,8 @@ services:
     environment:
       SECDET_LOG_LEVEL: INFO
     volumes:
-      # Host Akeyless profiles (read-only). Works on macOS, Linux, and
-      # Windows under WSL2 / Docker Desktop, which map $HOME or
-      # %USERPROFILE% transparently.
-      - "${HOME}/.akeyless:/root/.akeyless:ro"
-      # Persistent SQLite database.
+      # Persistent SQLite database. No host mounts needed: authentication
+      # is supplied at request time via a user-pasted t-token.
       - secdet-data:/data
     restart: unless-stopped
 
