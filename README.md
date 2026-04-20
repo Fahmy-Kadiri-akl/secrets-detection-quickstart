@@ -114,6 +114,41 @@ Failures appear in `docker logs`.
 | `resolve auth failed (502)` with `exit 1` | The token is expired or invalid. Copy a fresh one from the console. |
 | Import returns 502 partway | Most likely an expired token or a transient Akeyless gateway error. Retry with a fresh token. |
 
+## Data collected
+
+During **Preview**, the container runs one read-only call:
+
+| CLI command | Purpose |
+|---|---|
+| `akeyless get-account-settings --json --profile <token>` | Resolve `account_id` and `account_name` for confirmation before import. Nothing is written to the database. |
+
+During **Import**, the container runs the following read-only calls in
+order and writes the parsed JSON into the SQLite database. All calls
+use `--json --profile <token>`.
+
+| CLI command | What it returns | Stored in |
+|---|---|---|
+| `akeyless get-account-settings` | Account metadata (id, name) | Stamped on every row via `imports.account_id` |
+| `akeyless list-items` | All vault item metadata (name, type, tags, creation/rotation timestamps, targets, USC sync pointers). **No secret values.** | `items` table, plus `raw_responses` for replay |
+| `akeyless list-targets` | Target configurations (AWS / Azure / GCP / DB credentials metadata) | `raw_responses` |
+| `akeyless list-roles` | RBAC roles with path rules, auth-method associations, sub-claim constraints | `raw_responses`, read by the inventory RBAC graph |
+| `akeyless list-groups` | User groups | `raw_responses` |
+| `akeyless list-auth-methods` | Auth method configurations (type, access-ids, bound claims) | `raw_responses` |
+| `akeyless list-gateways` | Gateway / cluster topology | `raw_responses` |
+| `akeyless describe-item --name <item>` | **Called only for items of type `USC`** (Universal Secret Connector). Returns the `usc_sync_associated_items` list. | `usc_sync_items` table |
+
+The `describe-item` call runs once per USC item, not once per item in
+the vault. A 200-item tenant with 6 USCs produces 1 × `list-*` set
+plus 6 × `describe-item` calls.
+
+### What is *not* fetched
+
+* Secret values. Every command above returns metadata only.
+* Audit logs.
+* Gateway credentials.
+* Per-item historical versions beyond what `list-items` surfaces in
+  `last_version`.
+
 ## Security
 
 * The container does not read any host credentials directly.
