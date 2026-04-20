@@ -6,20 +6,19 @@ each item on priority and blast radius, and serves the result at
 `http://localhost:8000/`.
 
 The container image is published at
-`ghcr.io/fahmy-kadiri-akl/secrets_detection`. There is no build step.
+`ghcr.io/fahmy-kadiri-akl/secrets_detection:latest`. There is no build
+step.
 
 ## Prerequisites
 
 * Docker 20.10 or newer (Docker Desktop on macOS or Windows, or Docker
   Engine on Linux).
 * The Akeyless CLI installed on your host, with enough credentials to
-  mint a short-lived token. See https://docs.akeyless.io/docs/cli. You
-  do not need any profile on the host other than whatever you already
-  use to authenticate.
+  mint a short-lived token. See https://docs.akeyless.io/docs/cli.
 
-The container bundles its own Linux build of the Akeyless CLI, so it
-does not read the host's profile directory. Authentication is supplied
-at request time by pasting a t-token into the dashboard.
+The container bundles its own Linux build of the Akeyless CLI and does
+not read the host's profile directory. Authentication is supplied at
+request time by pasting a t-token into the dashboard.
 
 ## Run with `docker run`
 
@@ -71,9 +70,9 @@ docker compose up
 6. Open the Inventory tab.
 
 The token is cleared from the UI after a successful import. Every row
-stored in the database carries its `account_id`, and the banner at the
-top of every page scopes the UI to the selected account. Two imports
-from different accounts do not mix.
+stored in the database carries its `account_id`. The account banner at
+the top of every page scopes the UI to the selected account, so two
+imports from different accounts do not mix.
 
 ## Volume mounts
 
@@ -93,18 +92,15 @@ No host bind mounts are required.
 | `SECDET_PORT` | `8000` | Web server bind port |
 | `SECDET_LOG_LEVEL` | `INFO` | Python logging level |
 
-## Image tags
+## Image
+
+Only one tag is supported:
 
 | Tag | Notes |
 |---|---|
-| `latest` | Always the most recent release |
-| `2026-04-20-token` | Token-based auth. No profile mount. Uses `--profile <token>` correctly. |
-| `2026-04-20-bundled` | Pre-token build. Requires host profile mount. Do not use. |
-| `2026-04-20` | Pre-token build. Requires host CLI and profile mount. Do not use. |
-| `2026-04-19` | Initial publish. Do not use. |
-| `0.0.1` | Semver pin to 2026-04-19. Do not use. |
+| `latest` | The current release |
 
-Pin by digest:
+Pin by digest if you need byte-for-byte reproducibility:
 
 ```bash
 docker pull ghcr.io/fahmy-kadiri-akl/secrets_detection@sha256:a3df99308cef395fa25994bf5e5ce56ac3f62b338a745b38036c7a1bc7ed65d9
@@ -126,7 +122,7 @@ Failures appear in `docker logs`.
 |---|---|
 | `auth_token is required` (400) | The token field is empty. Paste a `t-xxx` string from `akeyless auth`. |
 | `resolve auth failed (502)` with `exit 1` | The token is expired or invalid. Mint a fresh one on the host. |
-| Import returns 502 | Most likely an expired token partway through the pipeline, or a transient Akeyless gateway error. Retry with a fresh token. |
+| Import returns 502 partway | Most likely an expired token or a transient Akeyless gateway error. Retry with a fresh token. |
 
 ## Security
 
