@@ -5,16 +5,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      SECDET_AKEYLESS_BIN: /opt/akeyless
       SECDET_LOG_LEVEL: INFO
     volumes:
-      # Host path to the akeyless CLI binary.
-      # Run as: AKEYLESS_BIN=$(command -v akeyless) docker compose up
-      # The :? suffix makes compose fail loudly if AKEYLESS_BIN is unset.
-      - "${AKEYLESS_BIN:?set AKEYLESS_BIN to host path of your akeyless CLI}:/opt/akeyless:ro"
-      # Host's akeyless profiles, read-only.
+      # Host Akeyless profiles (read-only). Works on macOS, Linux, and
+      # Windows under WSL2 / Docker Desktop, which map $HOME or
+      # %USERPROFILE% transparently.
       - "${HOME}/.akeyless:/root/.akeyless:ro"
-      # Persistent SQLite DB.
+      # Persistent SQLite database.
       - secdet-data:/data
     restart: unless-stopped
 

@@ -10,32 +10,46 @@ The container image is published at
 
 ## Prerequisites
 
-* Docker 20.10 or newer, or Docker Compose v2.
-* The Akeyless CLI installed on the host with at least one named profile.
+* Docker 20.10 or newer (Docker Desktop on macOS or Windows, or Docker
+  Engine on Linux).
+* At least one named Akeyless profile on the host under
+  `~/.akeyless/profiles/` (macOS, Linux, WSL2) or
+  `%USERPROFILE%\.akeyless\profiles\` (Windows).
 
-Check your setup:
+If you don't have a profile yet, install the Akeyless CLI on your host
+and run `akeyless configure --profile myprofile`. See
+https://docs.akeyless.io/docs/cli.
 
-```bash
-command -v akeyless
-ls ~/.akeyless/profiles/*.toml | grep -v '/t-'
-```
-
-If the CLI is missing, follow the install guide at
-https://docs.akeyless.io/docs/cli. Ephemeral `t-*.toml` token profiles
-are ignored; you need a profile you created with `akeyless configure`.
-
-The container does not bundle the CLI. You bind-mount the host binary at
-runtime. Image size stays around 168 MB and you run the CLI version you
-already trust.
+The container bundles its own Linux build of the Akeyless CLI, so you do
+not need the CLI binary on the host. You only need the profile TOML
+files so the container can authenticate as you.
 
 ## Run with `docker run`
 
+macOS and Linux:
+
 ```bash
 docker run --rm -p 8000:8000 \
-  -v "$(command -v akeyless):/opt/akeyless:ro" \
   -v "$HOME/.akeyless:/root/.akeyless:ro" \
   -v secdet-data:/data \
-  -e SECDET_AKEYLESS_BIN=/opt/akeyless \
+  ghcr.io/fahmy-kadiri-akl/secrets_detection:latest
+```
+
+Windows (PowerShell):
+
+```powershell
+docker run --rm -p 8000:8000 `
+  -v "${env:USERPROFILE}\.akeyless:/root/.akeyless:ro" `
+  -v secdet-data:/data `
+  ghcr.io/fahmy-kadiri-akl/secrets_detection:latest
+```
+
+Windows (cmd):
+
+```cmd
+docker run --rm -p 8000:8000 ^
+  -v "%USERPROFILE%\.akeyless:/root/.akeyless:ro" ^
+  -v secdet-data:/data ^
   ghcr.io/fahmy-kadiri-akl/secrets_detection:latest
 ```
 
@@ -46,32 +60,49 @@ Open http://localhost:8000/.
 ```bash
 git clone https://github.com/Fahmy-Kadiri-akl/secrets-detection-quickstart
 cd secrets-detection-quickstart
-AKEYLESS_BIN=$(command -v akeyless) docker compose up
+docker compose up
 ```
 
-Compose refuses to start if `AKEYLESS_BIN` is unset.
+Compose reads `${HOME}` on macOS and Linux. On Windows use `docker
+compose up` from a PowerShell session where `$HOME` maps to
+`%USERPROFILE%`.
 
 ## First run
 
-1. The dashboard loads at http://localhost:8000/.
+1. Open http://localhost:8000/.
 2. In the Import card, pick a profile from the dropdown.
-3. Click "Preview account" to confirm which Akeyless account the profile
-   is authenticated to. No data is written yet.
-4. Click "Import". The container runs `list-items`, `list-roles`,
+3. Click "Preview account". The container runs
+   `akeyless get-account-settings` using that profile and shows the
+   resolved `account_id`. Nothing is written to the database yet.
+4. Click "Import". The container pulls `list-items`, `list-roles`,
    `list-targets`, `list-auth-methods`, `list-groups`, `list-gateways`,
-   and per-item USC detail lookups. A 200-item tenant takes 10 to 30
-   seconds.
+   and per-item USC detail. A 200-item tenant takes 10 to 30 seconds.
 5. Open the Inventory tab.
 
-Every row stored in the database carries its `account_id`. Switching
-accounts in the banner at the top scopes the whole UI to the selected
-account. There is no cross-contamination between tenants.
+Every row stored in the database carries its `account_id`. The account
+banner at the top of every page scopes the whole UI to the selected
+account, so two accounts imported into the same database do not mix.
+
+## Profile portability
+
+For the common `access_key` auth type, profile TOML files are portable
+across macOS, Linux, and Windows. The container reads them as-is.
+
+Profiles that rely on host-specific auth flows (SAML browser redirect,
+OAuth2 local callback, Kerberos, cert files at Windows paths) will not
+authenticate from inside the container. For those, either:
+
+* Create a second profile that uses API key auth, and use it from this
+  container only, or
+* Use a short-lived access token (t-token). Run
+  `akeyless auth -a <access-id> -k <access-key>` on the host to mint
+  one, then paste it into the CLI's `--auth-token` flag. A UI option
+  for pasting a t-token is on the roadmap.
 
 ## Volume mounts
 
 | Mount | Purpose |
 |---|---|
-| `$(command -v akeyless):/opt/akeyless:ro` | Host Akeyless CLI binary |
 | `$HOME/.akeyless:/root/.akeyless:ro` | Host Akeyless profiles (read-only) |
 | `secdet-data:/data` | Persistent SQLite database at `/data/secdet.db` |
 
@@ -79,7 +110,7 @@ account. There is no cross-contamination between tenants.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `SECDET_AKEYLESS_BIN` | (none) | Absolute path to the CLI inside the container |
+| `SECDET_AKEYLESS_BIN` | `/opt/akeyless/akeyless` | Absolute path to the bundled CLI. Override only if you mount a different binary. |
 | `SECDET_DB` | `/data/secdet.db` | SQLite database path |
 | `SECDET_HOST` | `0.0.0.0` | Web server bind host |
 | `SECDET_PORT` | `8000` | Web server bind port |
@@ -90,76 +121,45 @@ account. There is no cross-contamination between tenants.
 The entrypoint validates the environment before starting the web server.
 It exits with a non-zero code and a clear message if:
 
-* `akeyless` is not resolvable inside the container.
+* The bundled Akeyless CLI is missing or not executable.
 * `~/.akeyless/profiles/` is missing or contains no named profiles.
 * `/data` is not writable.
 
-There are no silent fallbacks. Failures show up in `docker logs`.
+Failures appear in `docker logs`.
 
 ## Image tags
 
 | Tag | Use |
 |---|---|
 | `latest` | Always the most recent release |
-| `2026-04-20` | Pinned snapshot: BlastCell signal icons, tier recalibration, clickable Paths and Findings drawers |
-| `2026-04-19` | Pinned snapshot: initial publish |
-| `0.0.1` | Semver pin to the 2026-04-19 build |
+| `2026-04-20-bundled` | Pinned snapshot: bundles the Akeyless Linux CLI so no host binary is needed |
+| `2026-04-20` | Pinned snapshot: BlastCell signal icons, tier recalibration, clickable drawers (requires host CLI mount) |
+| `2026-04-19` | Initial publish (requires host CLI mount) |
+| `0.0.1` | Semver pin to 2026-04-19 |
 
-To pin by digest:
+Pin by digest:
 
 ```bash
-docker pull ghcr.io/fahmy-kadiri-akl/secrets_detection@sha256:01695dc3c2491534a5aba3accd19eeda7abc76c89b86b60f2ce62770891818d4
+docker pull ghcr.io/fahmy-kadiri-akl/secrets_detection@sha256:9db5a763e3792e584ad619b0101234abb97cf7e1ec304712c862792d69df77d6
 ```
-
-## What the dashboard shows
-
-Overview page:
-
-* Rotation hygiene, median days since rotation, SLA breach rate, and
-  percentage of unassigned items.
-* Cohort cards for stale, orphan, unassigned, cloud-exposed,
-  admin-reachable, high-blast-low-priority, SLA-breach, and never-rotated
-  items.
-* Import history.
-
-Inventory page (per row):
-
-* Name and path.
-* Type.
-* Priority tier (P0 to P4) with numeric score.
-* Blast radius cell: tier badge, four signal icons (cloud-synced,
-  DFC-mitigated, high-impact type, high downstream reach), numeric
-  score.
-* Lifecycle: age, version, last-access.
-* Roles, auth methods, capabilities, tags, targets, cloud environments,
-  USC sync count.
-* Owner, team, system if configured in Settings.
-
-Click any row, path, or cohort to open a side drawer with the full
-breakdown. The drawer exposes the RBAC access graph, sub-claim
-constraints on each reachable auth method, and the blast score
-components.
-
-Settings page lets you manage folder, tag, and role-substring mappings
-that populate owner, team, and system.
 
 ## Troubleshooting
 
 | Symptom | Cause |
 |---|---|
-| `preflight FAILED: akeyless CLI not found` | `SECDET_AKEYLESS_BIN` is unset or `$(command -v akeyless)` returned empty on the host |
-| `preflight FAILED: no named akeyless profiles found` | Only ephemeral `t-*.toml` profiles exist. Create a named profile with `akeyless configure --profile myprofile` |
+| `preflight FAILED: no named akeyless profiles found` | Only ephemeral `t-*.toml` token profiles exist. Create a named profile with `akeyless configure --profile myprofile` on the host |
 | `preflight FAILED: /data is not writable` | The `/data` mount is read-only. Use a named volume: `-v secdet-data:/data` |
-| UI loads, Import returns 502 | The profile's auth token expired. Re-run `akeyless configure --profile <name>` on the host and restart the container |
+| Import returns 502 with `exit 1` | The profile's auth flow does not work from inside the container (SAML, OAuth, or host-cert). See "Profile portability" above |
+| Import returns 502 with `token expired` | The profile's access token expired. Re-authenticate on the host: `akeyless configure --profile <name>` |
 
 ## Security
 
 * The container reads `~/.akeyless` only. The mount is `:ro`.
-* Secret *values* are never pulled. `list-items` and `describe-item`
-  return metadata only.
+* The Akeyless CLI `list-*` and `describe-*` commands return metadata,
+  not secret values.
 * The SQLite database at `/data/secdet.db` contains item metadata, role
-  definitions, auth method configs, and USC sync associations. Treat it
-  as sensitive: it exposes your RBAC topology. It does not contain
+  definitions, auth method configs, and USC sync associations. Treat
+  it as sensitive: it exposes your RBAC topology. It does not contain
   vault secrets.
 
 ## License
