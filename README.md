@@ -13,9 +13,9 @@ step.
 
 * Docker 20.10 or newer (Docker Desktop on macOS or Windows, or Docker
   Engine on Linux).
-* A short-lived Akeyless token (`t-...`) from your tenant. Mint it
-  however you prefer: the Akeyless web console, the Akeyless REST
-  API (`POST /auth`), or the Akeyless CLI on any machine.
+* A short-lived Akeyless token (`t-...`) from your tenant. Get it
+  from the Akeyless web console using the **Copy token** action on
+  your user or access entry.
 
 The container authenticates each request with the token you paste into
 the UI. It does not read any host credentials or profiles.
@@ -42,19 +42,8 @@ docker compose up
 
 ## First run
 
-1. Mint a short-lived token from your tenant. Any of:
-
-   * **Akeyless web console**: Settings, CLI / API tokens (or equivalent
-     in your tenant).
-   * **Akeyless REST API**: `POST /auth` with your credentials returns
-     `{"token": "t-..."}`.
-   * **Akeyless CLI** on any machine where it is installed:
-     ```bash
-     akeyless auth -a <access-id> -k <access-key>   # API key
-     akeyless auth -a <access-id>                   # SAML / OAuth
-     ```
-
-   Copy the resulting `t-xxxxxxxxxxxx` string.
+1. In the Akeyless web console, open your access entry and click
+   **Copy token**. You'll get a short-lived `t-xxxxxxxxxxxx` string.
 
 2. Open http://localhost:8000/.
 
@@ -121,8 +110,8 @@ Failures appear in `docker logs`.
 
 | Symptom | Cause |
 |---|---|
-| `auth_token is required` (400) | The token field is empty. Paste a `t-xxx` string. |
-| `resolve auth failed (502)` with `exit 1` | The token is expired or invalid. Mint a fresh one. |
+| `auth_token is required` (400) | The token field is empty. Copy a `t-xxx` token from the Akeyless console. |
+| `resolve auth failed (502)` with `exit 1` | The token is expired or invalid. Copy a fresh one from the console. |
 | Import returns 502 partway | Most likely an expired token or a transient Akeyless gateway error. Retry with a fresh token. |
 
 ## Security
