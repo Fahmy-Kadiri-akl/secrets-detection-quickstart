@@ -105,16 +105,17 @@ No fallbacks. If something's wrong, `docker logs` tells you exactly what.
 
 ## Image tags
 
-| Tag          | Use                                      |
-|--------------|------------------------------------------|
-| `latest`     | Rolling — the most recent release        |
-| `0.0.1`      | Pinned semver                            |
-| `2026-04-19` | Date-pinned (initial publish)            |
+| Tag          | Use                                                        |
+|--------------|------------------------------------------------------------|
+| `latest`     | Rolling — always the most recent release                   |
+| `2026-04-20` | Date-pinned (BlastCell signal icons + tier recalibration)  |
+| `2026-04-19` | Date-pinned (initial publish)                              |
+| `0.0.1`      | Pinned semver — pins to the 2026-04-19 build               |
 
 Pull by digest if you need byte-for-byte reproducibility:
 
 ```bash
-docker pull ghcr.io/fahmy-kadiri-akl/secrets_detection@sha256:6e902b14e0fa9e65a776f7ad7fe04a25939f75bcba6fbebae498f2b5801eafd8
+docker pull ghcr.io/fahmy-kadiri-akl/secrets_detection@sha256:fa09ea4b721bbe92968b8e8ae2376ca56c3ef5bf07a4236560113ef797901636
 ```
 
 ---
