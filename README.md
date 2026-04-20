@@ -1,37 +1,34 @@
-# secrets-detection — quickstart
+# secrets-detection
 
-Visualize which **Akeyless** vault secrets should be rotated next.
+A dashboard for Akeyless customers to review vault items and decide which
+ones to rotate. It imports metadata from the Akeyless CLI, scores each
+item on priority and blast radius, and serves the result at
+`http://localhost:8000/`.
 
-This repo is the quickstart for running the pre-built container; the
-application ingests `akeyless list-items` output from your tenant, scores
-each secret by rotation priority + blast radius, and serves a dashboard
-at http://localhost:8000/.
-
-The image is published publicly at
-**`ghcr.io/fahmy-kadiri-akl/secrets_detection`**. No build step required.
-
----
+The container image is published at
+`ghcr.io/fahmy-kadiri-akl/secrets_detection`. There is no build step.
 
 ## Prerequisites
 
-1. **Docker** (`docker >= 20.10`) or **Docker Compose v2**.
-2. The **Akeyless CLI** installed on the host and configured with at least
-   one named profile:
-   ```bash
-   command -v akeyless   # must resolve to a binary
-   ls ~/.akeyless/profiles/*.toml | grep -v '/t-'   # at least one named profile
-   ```
-   If you don't have it yet, follow
-   [docs.akeyless.io/docs/cli](https://docs.akeyless.io/docs/cli) to install
-   and configure a profile.
+* Docker 20.10 or newer, or Docker Compose v2.
+* The Akeyless CLI installed on the host with at least one named profile.
 
-The container does **not** bundle the CLI — you bind-mount your host's
-binary into the container. This keeps the image small (~168 MB) and means
-you're always running the exact CLI version you trust.
+Check your setup:
 
----
+```bash
+command -v akeyless
+ls ~/.akeyless/profiles/*.toml | grep -v '/t-'
+```
 
-## Run it — one command
+If the CLI is missing, follow the install guide at
+https://docs.akeyless.io/docs/cli. Ephemeral `t-*.toml` token profiles
+are ignored; you need a profile you created with `akeyless configure`.
+
+The container does not bundle the CLI. You bind-mount the host binary at
+runtime. Image size stays around 168 MB and you run the CLI version you
+already trust.
+
+## Run with `docker run`
 
 ```bash
 docker run --rm -p 8000:8000 \
@@ -42,9 +39,9 @@ docker run --rm -p 8000:8000 \
   ghcr.io/fahmy-kadiri-akl/secrets_detection:latest
 ```
 
-Then open **http://localhost:8000/**.
+Open http://localhost:8000/.
 
-## Run it — Docker Compose
+## Run with Docker Compose
 
 ```bash
 git clone https://github.com/Fahmy-Kadiri-akl/secrets-detection-quickstart
@@ -52,121 +49,122 @@ cd secrets-detection-quickstart
 AKEYLESS_BIN=$(command -v akeyless) docker compose up
 ```
 
-Compose refuses to start if `AKEYLESS_BIN` is unset — no silent fallback.
+Compose refuses to start if `AKEYLESS_BIN` is unset.
 
----
+## First run
 
-## First-run flow
+1. The dashboard loads at http://localhost:8000/.
+2. In the Import card, pick a profile from the dropdown.
+3. Click "Preview account" to confirm which Akeyless account the profile
+   is authenticated to. No data is written yet.
+4. Click "Import". The container runs `list-items`, `list-roles`,
+   `list-targets`, `list-auth-methods`, `list-groups`, `list-gateways`,
+   and per-item USC detail lookups. A 200-item tenant takes 10 to 30
+   seconds.
+5. Open the Inventory tab.
 
-1. Dashboard loads at http://localhost:8000/.
-2. In the **Import** card, pick a profile from the dropdown.
-3. Click **Preview account** — confirms which Akeyless account this
-   profile is authenticated to (e.g. `acc-abc123…`). No data is written
-   to the DB until you click Import.
-4. Click **Import** — pulls `list-items`, `list-roles`, `list-targets`,
-   `list-auth-methods`, `list-groups`, `list-gateways`, and per-item USC
-   details via the CLI. A 200-item tenant typically takes 10–30 seconds.
-5. Go to **Inventory** — the rotation-priority dashboard.
+Every row stored in the database carries its `account_id`. Switching
+accounts in the banner at the top scopes the whole UI to the selected
+account. There is no cross-contamination between tenants.
 
-Every imported row is stamped with its `account_id`. Switching accounts
-(in the banner at the top of every page) scopes the entire UI to the
-selected account — no cross-contamination between tenants.
+## Volume mounts
 
----
+| Mount | Purpose |
+|---|---|
+| `$(command -v akeyless):/opt/akeyless:ro` | Host Akeyless CLI binary |
+| `$HOME/.akeyless:/root/.akeyless:ro` | Host Akeyless profiles (read-only) |
+| `secdet-data:/data` | Persistent SQLite database at `/data/secdet.db` |
 
-## Runtime contract
+## Environment variables
 
-| Volume mount                               | Purpose                                          |
-|--------------------------------------------|--------------------------------------------------|
-| `$(command -v akeyless):/opt/akeyless:ro`  | Host's akeyless CLI binary                       |
-| `$HOME/.akeyless:/root/.akeyless:ro`       | Host's akeyless profiles (read-only)             |
-| `secdet-data:/data`                        | Persistent SQLite DB at `/data/secdet.db`        |
+| Variable | Default | Notes |
+|---|---|---|
+| `SECDET_AKEYLESS_BIN` | (none) | Absolute path to the CLI inside the container |
+| `SECDET_DB` | `/data/secdet.db` | SQLite database path |
+| `SECDET_HOST` | `0.0.0.0` | Web server bind host |
+| `SECDET_PORT` | `8000` | Web server bind port |
+| `SECDET_LOG_LEVEL` | `INFO` | Python logging level |
 
-| Environment variable   | Default           | Notes                                     |
-|------------------------|-------------------|-------------------------------------------|
-| `SECDET_AKEYLESS_BIN`  | —                 | Absolute path to the CLI inside container |
-| `SECDET_DB`            | `/data/secdet.db` | SQLite DB path                            |
-| `SECDET_HOST`          | `0.0.0.0`         | Bind host for the web server              |
-| `SECDET_PORT`          | `8000`            | Bind port for the web server              |
-| `SECDET_LOG_LEVEL`     | `INFO`            | Python logging level                      |
+## Preflight
 
-### Preflight
+The entrypoint validates the environment before starting the web server.
+It exits with a non-zero code and a clear message if:
 
-The container's entrypoint validates the environment before starting
-uvicorn, and **exits non-zero with a clear message** if:
+* `akeyless` is not resolvable inside the container.
+* `~/.akeyless/profiles/` is missing or contains no named profiles.
+* `/data` is not writable.
 
-- `akeyless` isn't resolvable inside the container
-- `~/.akeyless/profiles/` is empty or missing (no named profiles)
-- `/data` is not writable
-
-No fallbacks. If something's wrong, `docker logs` tells you exactly what.
-
----
+There are no silent fallbacks. Failures show up in `docker logs`.
 
 ## Image tags
 
-| Tag          | Use                                                        |
-|--------------|------------------------------------------------------------|
-| `latest`     | Rolling — always the most recent release                   |
-| `2026-04-20` | Date-pinned (BlastCell signal icons + tier recalibration)  |
-| `2026-04-19` | Date-pinned (initial publish)                              |
-| `0.0.1`      | Pinned semver — pins to the 2026-04-19 build               |
+| Tag | Use |
+|---|---|
+| `latest` | Always the most recent release |
+| `2026-04-20` | Pinned snapshot: BlastCell signal icons, tier recalibration, clickable Paths and Findings drawers |
+| `2026-04-19` | Pinned snapshot: initial publish |
+| `0.0.1` | Semver pin to the 2026-04-19 build |
 
-Pull by digest if you need byte-for-byte reproducibility:
+To pin by digest:
 
 ```bash
-docker pull ghcr.io/fahmy-kadiri-akl/secrets_detection@sha256:fa09ea4b721bbe92968b8e8ae2376ca56c3ef5bf07a4236560113ef797901636
+docker pull ghcr.io/fahmy-kadiri-akl/secrets_detection@sha256:01695dc3c2491534a5aba3accd19eeda7abc76c89b86b60f2ce62770891818d4
 ```
 
----
+## What the dashboard shows
 
-## What's in the dashboard
+Overview page:
 
-- **Overview** — hygiene KPIs (% rotated, median days since rotation, SLA
-  breach %, % unassigned), cohort cards, and an import history table.
-- **Inventory** — the 200-row table. Each row shows:
-  - Name + path
-  - Type
-  - Priority tier (P0..P4) + score
-  - **Blast radius cell** — tier badge + 4 signal icons (cloud-synced,
-    DFC-mitigated, high-impact type, high downstream reach) + score
-  - Lifecycle (age · version · last-accessed)
-  - Roles / Auth methods / Capabilities / Tags / Targets / Cloud / USC
-  - Owner / Team / System (from your configurable mappings)
-- **Settings** — manage the folder / tag / role-substring mappings that
-  populate owner / team / system fields.
+* Rotation hygiene, median days since rotation, SLA breach rate, and
+  percentage of unassigned items.
+* Cohort cards for stale, orphan, unassigned, cloud-exposed,
+  admin-reachable, high-blast-low-priority, SLA-breach, and never-rotated
+  items.
+* Import history.
 
-Click any row to open the detail drawer: full RBAC access graph, sub-claim
-constraints on each reachable auth method, and the full blast-radius
-breakdown.
+Inventory page (per row):
 
----
+* Name and path.
+* Type.
+* Priority tier (P0 to P4) with numeric score.
+* Blast radius cell: tier badge, four signal icons (cloud-synced,
+  DFC-mitigated, high-impact type, high downstream reach), numeric
+  score.
+* Lifecycle: age, version, last-access.
+* Roles, auth methods, capabilities, tags, targets, cloud environments,
+  USC sync count.
+* Owner, team, system if configured in Settings.
+
+Click any row, path, or cohort to open a side drawer with the full
+breakdown. The drawer exposes the RBAC access graph, sub-claim
+constraints on each reachable auth method, and the blast score
+components.
+
+Settings page lets you manage folder, tag, and role-substring mappings
+that populate owner, team, and system.
 
 ## Troubleshooting
 
-| Symptom | Likely cause |
+| Symptom | Cause |
 |---|---|
-| `preflight FAILED: akeyless CLI not found` | `AKEYLESS_BIN` env var unset, or `$(command -v akeyless)` didn't resolve on the host |
-| `preflight FAILED: no named akeyless profiles found` | Only ephemeral `t-*.toml` token profiles exist; configure a named profile: `akeyless configure --profile myprofile` |
-| `preflight FAILED: /data is not writable` | Volume mount is read-only; use `-v secdet-data:/data` (named volume) |
-| UI loads but Import returns 502 | Profile's token has expired — re-run `akeyless configure --profile <name>` and restart the container |
+| `preflight FAILED: akeyless CLI not found` | `SECDET_AKEYLESS_BIN` is unset or `$(command -v akeyless)` returned empty on the host |
+| `preflight FAILED: no named akeyless profiles found` | Only ephemeral `t-*.toml` profiles exist. Create a named profile with `akeyless configure --profile myprofile` |
+| `preflight FAILED: /data is not writable` | The `/data` mount is read-only. Use a named volume: `-v secdet-data:/data` |
+| UI loads, Import returns 502 | The profile's auth token expired. Re-run `akeyless configure --profile <name>` on the host and restart the container |
 
----
+## Security
 
-## Security model
-
-- The container **only reads** from `~/.akeyless` (the mount is `:ro`).
-- Secret *values* are never pulled — only metadata from `list-items`,
-  `describe-item`, etc. `list-items` does not return secret material.
-- The SQLite DB at `/data/secdet.db` contains item metadata, role
+* The container reads `~/.akeyless` only. The mount is `:ro`.
+* Secret *values* are never pulled. `list-items` and `describe-item`
+  return metadata only.
+* The SQLite database at `/data/secdet.db` contains item metadata, role
   definitions, auth method configs, and USC sync associations. Treat it
-  as sensitive (it reveals your RBAC topology) but no vault secrets.
-
----
+  as sensitive: it exposes your RBAC topology. It does not contain
+  vault secrets.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT. See [LICENSE](./LICENSE).
 
-The source for the container lives in a separate repository; contact the
+The source repository is separate from this quickstart. Contact the
 maintainer for access.
