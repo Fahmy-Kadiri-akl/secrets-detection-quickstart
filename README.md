@@ -13,12 +13,12 @@ step.
 
 * Docker 20.10 or newer (Docker Desktop on macOS or Windows, or Docker
   Engine on Linux).
-* The Akeyless CLI installed on your host, with enough credentials to
-  mint a short-lived token. See https://docs.akeyless.io/docs/cli.
+* A short-lived Akeyless token (`t-...`) from your tenant. Mint it
+  however you prefer: the Akeyless web console, the Akeyless REST
+  API (`POST /auth`), or the Akeyless CLI on any machine.
 
-The container bundles its own Linux build of the Akeyless CLI and does
-not read the host's profile directory. Authentication is supplied at
-request time by pasting a t-token into the dashboard.
+The container authenticates each request with the token you paste into
+the UI. It does not read any host credentials or profiles.
 
 ## Run with `docker run`
 
@@ -42,18 +42,19 @@ docker compose up
 
 ## First run
 
-1. On your host, mint a short-lived token. The exact command depends on
-   how your tenant authenticates. Examples:
+1. Mint a short-lived token from your tenant. Any of:
 
-   ```bash
-   # API key auth
-   akeyless auth -a <access-id> -k <access-key>
+   * **Akeyless web console**: Settings, CLI / API tokens (or equivalent
+     in your tenant).
+   * **Akeyless REST API**: `POST /auth` with your credentials returns
+     `{"token": "t-..."}`.
+   * **Akeyless CLI** on any machine where it is installed:
+     ```bash
+     akeyless auth -a <access-id> -k <access-key>   # API key
+     akeyless auth -a <access-id>                   # SAML / OAuth
+     ```
 
-   # SAML
-   akeyless auth -a <access-id>
-   ```
-
-   The CLI prints a `t-xxxxxxxxxxxx` string. Copy it.
+   Copy the resulting `t-xxxxxxxxxxxx` string.
 
 2. Open http://localhost:8000/.
 
@@ -120,8 +121,8 @@ Failures appear in `docker logs`.
 
 | Symptom | Cause |
 |---|---|
-| `auth_token is required` (400) | The token field is empty. Paste a `t-xxx` string from `akeyless auth`. |
-| `resolve auth failed (502)` with `exit 1` | The token is expired or invalid. Mint a fresh one on the host. |
+| `auth_token is required` (400) | The token field is empty. Paste a `t-xxx` string. |
+| `resolve auth failed (502)` with `exit 1` | The token is expired or invalid. Mint a fresh one. |
 | Import returns 502 partway | Most likely an expired token or a transient Akeyless gateway error. Retry with a fresh token. |
 
 ## Security
