@@ -1,0 +1,22 @@
+services:
+  secrets-detection:
+    image: ghcr.io/fahmy-kadiri-akl/secrets_detection:latest
+    container_name: secrets-detection
+    ports:
+      - "8000:8000"
+    environment:
+      SECDET_AKEYLESS_BIN: /opt/akeyless
+      SECDET_LOG_LEVEL: INFO
+    volumes:
+      # Host path to the akeyless CLI binary.
+      # Run as: AKEYLESS_BIN=$(command -v akeyless) docker compose up
+      # The :? suffix makes compose fail loudly if AKEYLESS_BIN is unset.
+      - "${AKEYLESS_BIN:?set AKEYLESS_BIN to host path of your akeyless CLI}:/opt/akeyless:ro"
+      # Host's akeyless profiles, read-only.
+      - "${HOME}/.akeyless:/root/.akeyless:ro"
+      # Persistent SQLite DB.
+      - secdet-data:/data
+    restart: unless-stopped
+
+volumes:
+  secdet-data:
