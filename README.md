@@ -40,6 +40,50 @@ cd secrets-detection-quickstart
 docker compose up
 ```
 
+## If port 8000 is already in use
+
+The dashboard listens on **port 8000** by default. If something else on
+your machine (another container, an existing dev server, an IDE
+preview, etc.) is already using port 8000, pick any free port — for
+example, **8080** — and use the matching command below.
+
+**Docker Compose** — set `HOST_PORT` to your chosen port:
+
+```bash
+HOST_PORT=8080 docker compose up
+```
+
+Or create a file called `.env` in the `secrets-detection-quickstart`
+directory with one line:
+
+```
+HOST_PORT=8080
+```
+
+Then `docker compose up` will pick it up automatically every time.
+
+**`docker run`** — change the **first** number in `-p` (the host side):
+
+```bash
+docker run --rm -p 8080:8000 \
+  -v secdet-data:/data \
+  ghcr.io/fahmy-kadiri-akl/secrets_detection:latest
+```
+
+Then open the matching URL — for example **http://localhost:8080/**.
+The container always listens internally on 8000; only the host port
+changes.
+
+### How do I know what's using port 8000?
+
+| OS | Command |
+|---|---|
+| macOS / Linux | `lsof -i :8000` |
+| Windows (PowerShell) | `Get-NetTCPConnection -LocalPort 8000` |
+
+If you'd rather pick the next free port without checking, **8080,
+8081, 8888, and 9000** are common safe choices.
+
 ## First run
 
 1. In the Akeyless web console, open your access entry and click
@@ -81,6 +125,13 @@ No host bind mounts are required.
 | `SECDET_HOST` | `0.0.0.0` | Web server bind host |
 | `SECDET_PORT` | `8000` | Web server bind port |
 | `SECDET_LOG_LEVEL` | `INFO` | Python logging level |
+| `SECDET_CRED_DB` | `/data/secdet-credentials.db` | Encrypted credential vault path. Lives in the `/data` volume so saved tokens persist across `docker run --rm` cycles. |
+
+Compose-only:
+
+| Variable | Default | Notes |
+|---|---|---|
+| `HOST_PORT` | `8000` | Host-side port the dashboard binds to. Read by `docker-compose.yml`. See [If port 8000 is already in use](#if-port-8000-is-already-in-use). |
 
 ## Image
 
@@ -93,7 +144,7 @@ Only one tag is supported:
 Pin by digest if you need byte-for-byte reproducibility:
 
 ```bash
-docker pull ghcr.io/fahmy-kadiri-akl/secrets_detection@sha256:a3df99308cef395fa25994bf5e5ce56ac3f62b338a745b38036c7a1bc7ed65d9
+docker pull ghcr.io/fahmy-kadiri-akl/secrets_detection@sha256:c40f62b31113ce1f8dbb1a2df26d4b8d4e364277b94e8b42cf919afa1c6125cc
 ```
 
 ## Preflight

@@ -3,7 +3,11 @@ services:
     image: ghcr.io/fahmy-kadiri-akl/secrets_detection:latest
     container_name: secrets-detection
     ports:
-      - "8000:8000"
+      # Host-side port is configurable via the HOST_PORT env var (or a
+      # .env file alongside this compose file). Container-side stays 8000.
+      # Default: 8000 on the host. To use a different port:
+      #   HOST_PORT=8080 docker compose up
+      - "${HOST_PORT:-8000}:8000"
     environment:
       SECDET_LOG_LEVEL: INFO
     volumes:
