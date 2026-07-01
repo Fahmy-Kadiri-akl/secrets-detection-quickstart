@@ -141,10 +141,19 @@ Only one tag is supported:
 |---|---|
 | `latest` | The current release |
 
+### Platforms
+
+The image is multi-arch; Docker pulls the build that matches your host:
+
+| Platform | Hardware |
+|---|---|
+| `linux/amd64` | Intel/AMD Macs, most Linux and Windows (WSL2) hosts |
+| `linux/arm64` | Apple Silicon Macs (M-series), AWS Graviton, ARM servers |
+
 Pin by digest if you need byte-for-byte reproducibility:
 
 ```bash
-docker pull ghcr.io/fahmy-kadiri-akl/secrets_detection@sha256:c40f62b31113ce1f8dbb1a2df26d4b8d4e364277b94e8b42cf919afa1c6125cc
+docker pull ghcr.io/fahmy-kadiri-akl/secrets_detection@sha256:d81b5efffd0f8e93518f440da129af16b88d2b2b933ac2b3d15ed30d207d0e8e
 ```
 
 ## Preflight
